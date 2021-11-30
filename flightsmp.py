@@ -1,7 +1,7 @@
-"""A program that searches flght data from Google Flights"""
+"""A multiprocess program that searches flght data from Google Flights"""
 
 import re
-import threading
+import multiprocessing
 import datetime
 import itertools
 from queue import Queue
@@ -10,8 +10,7 @@ from db import commit_data, flights_table, get_existing_airport_combos, get_numb
 from playwright.sync_api import sync_playwright
 
 
-('ATL', 'LAX', 'ORD', 'DFW', 'DEN', 'JFK', 'SFO', 'LAS', 'PHX', 'IAH', 'DEN', 'CLT', 'LAS', 'MCO', 'SEA', 'MIA', 'FLL', 'SFO', 'EWR', 'MSP', 'FLL', 'BOS', 'DTW', 'PHL', 'LGA', 'BWI', 'SLC', 'SAN', 'DCA', 'TPA', 'IAD', 'MDW', 'HNL', 'PDX', 'SJC', 'DAL', 'MSY', 'STL', 'OAK', 'SMF', 'BNA')
-
+AIRPORTS = ('ATL', 'LAX', 'ORD', 'DFW', 'DEN', 'JFK', 'SFO', 'LAS', 'PHX', 'IAH', 'DEN', 'CLT', 'LAS', 'MCO', 'SEA', 'MIA', 'FLL', 'SFO', 'EWR', 'MSP', 'FLL', 'BOS', 'DTW', 'PHL', 'LGA', 'BWI', 'SLC', 'SAN', 'DCA', 'TPA', 'IAD', 'MDW', 'HNL', 'PDX', 'SJC', 'DAL', 'MSY', 'STL', 'OAK', 'SMF', 'BNA')
 START_DATE = datetime.datetime(2021, 12, 14)
 NUM_DAYS = 7
 
@@ -63,9 +62,9 @@ def increment_date_on_page(page, increment=1):
     Increments depart date on page by n days
     Default is 1 day
     """
-    page.set_default_timeout(5000)
+
     for _ in range(increment):
-        page.wait_for_timeout(700)
+        page.wait_for_timeout(1000)
         try:
             page.click('//input[@type="text" and @value and @placeholder="Departure date"]/../div[3]')
         except Exception:
@@ -136,11 +135,9 @@ def get_flight_data(page, current_day) -> list[dict[str, str]]:
 def main(combination, start_page=0):
     current_day = start_page or 0
     try:
-        sema.acquire()
         with sync_playwright() as p:
             browser = p.firefox.launch(headless=False, slow_mo=50)
             page = browser.new_page()
-            page.set_default_timeout(65000)
             page.goto('https://www.google.com/travel/flights')
 
             airport_from, airport_to = combination
@@ -148,20 +145,17 @@ def main(combination, start_page=0):
             search_flights(page, airport_from, airport_to)
             page.wait_for_timeout(5000)
             for _ in range(NUM_DAYS):
-                page.set_default_timeout(65000)
                 flights = get_flight_data(page, current_day)
                 commit_data(flights_table, flights)
                 increment_date_on_page(page)
                 current_day += 1
-            sema.release()
+
     except:
         print('FDIFJIDFJIJF')
         main(combination, start_page=current_day)
-        sema.release()
 
 
 if __name__ == '__main__':
-    sema = threading.Semaphore(value=24)
-    for combination in get_airport_combination(AIRPORTS):
-        t = threading.Thread(target=main, args=(combination,)).start()
-
+    pool = multiprocessing.Pool(processes=16)
+    # pool multiprocessing for all combinations
+    pool.map(main, get_airport_combination(AIRPORTS))
