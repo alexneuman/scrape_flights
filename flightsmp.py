@@ -151,7 +151,6 @@ def main(combination, start_page=0):
                 current_day += 1
 
     except:
-        print('FDIFJIDFJIJF')
         main(combination, start_page=current_day)
 
 
