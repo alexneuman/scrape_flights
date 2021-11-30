@@ -1,6 +1,10 @@
+"""Airline database management"""
+
+import time
 
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, Boolean, UniqueConstraint, insert, select
 from sqlalchemy.exc import IntegrityError
+
 
 engine = create_engine('sqlite:///airline.db', echo=True, future=True)
 metadata = MetaData()
@@ -19,7 +23,7 @@ flights_table = Table(
     Column('num_stops', Integer()),
     Column('is_round_trip', Boolean()),
 
-    UniqueConstraint('depart_time', 'arrival_time', 'price', 'depart_date', 'airlines')
+    # UniqueConstraint('depart_time', 'arrival_time', 'price', 'depart_date', 'airlines')
 )
 
 metadata.create_all(engine)

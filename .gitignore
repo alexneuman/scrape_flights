@@ -138,4 +138,4 @@ cython_debug/
 
 #database
 
-airline.db
+*.db

@@ -1,3 +1,4 @@
+"""A program that searches flght data from Google Flights"""
 
 import re
 import datetime
@@ -22,15 +23,12 @@ def get_airport_combination(airports):
     # filter out existing combinations
     combinations = possible_combinations - existing_combos
     
+    # all possible combinations of airports
     for combination in itertools.chain(combinations, (tuple(reversed(c)) for c in combinations)):
+        # check if combination not identical, incomplete
         if combination[0] == combination[1] or get_number_of_days_for_combo(*combination) == NUM_DAYS:
             continue
         yield combination
-
-    # for combination in (tuple(reversed(c)) for c in combinations) or get_number_of_days_for_combo(*combination) < NUM_DAYS:
-    #     if combination[0] == combination[1]:
-    #         continue
-    #     yield combination
 
 def search_flights(page, airport_from: str, airport_to: str) -> None:
     """
@@ -132,7 +130,7 @@ def get_flight_data(page) -> list[dict[str, str]]:
 
 if __name__ == '__main__':
     with sync_playwright() as p:
-        browser = p.firefox.launch(headless=True, slow_mo=50)
+        browser = p.firefox.launch(headless=False, slow_mo=50)
         page = browser.new_page()
         for combination in get_airport_combination(AIRPORTS):
             page.goto('https://www.google.com/travel/flights')
