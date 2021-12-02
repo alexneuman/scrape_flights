@@ -7,7 +7,7 @@ import itertools
 from queue import Queue
 
 from db import commit_data, flights_table, get_existing_airport_combos, get_number_of_days_for_combo
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 
 AIRPORTS = ('ATL', 'LAX', 'ORD', 'DFW', 'DEN', 'JFK', 'SFO', 'LAS', 'PHX', 'IAH', 'DEN', 'CLT', 'LAS', 'MCO', 'SEA', 'MIA', 'FLL', 'SFO', 'EWR', 'MSP', 'FLL', 'BOS', 'DTW', 'PHL', 'LGA', 'BWI', 'SLC', 'SAN', 'DCA', 'TPA', 'IAD', 'MDW', 'HNL', 'PDX', 'SJC', 'DAL', 'MSY', 'STL', 'OAK', 'SMF', 'BNA')
@@ -38,6 +38,7 @@ def search_flights(page, airport_from: str, airport_to: str) -> None:
     Searches for flights from airport_from to airport_to
     """
 
+
     # enter departure airport in search
     page.click('//div[@aria-placeholder="Where from?"]')
     page.keyboard.type(airport_from)
@@ -52,7 +53,7 @@ def search_flights(page, airport_from: str, airport_to: str) -> None:
     page.wait_for_timeout(2000)
     try:
         page.click('//button[@jslog and @jscontroller]/..[contains(@jsaction, "click")]')
-    except:
+    except PlaywrightTimeoutError:
         page.reload()
         search_flights(page, airport_from, airport_to)
 
@@ -62,6 +63,7 @@ def increment_date_on_page(page, increment=1):
     Increments depart date on page by n days
     Default is 1 day
     """
+
 
     for _ in range(increment):
         page.wait_for_timeout(1000)
@@ -151,10 +153,11 @@ def main(combination, start_page=0):
                 current_day += 1
 
     except:
+        print('An uncaught exception ocurred. Restarting...')
         main(combination, start_page=current_day)
 
 
 if __name__ == '__main__':
-    pool = multiprocessing.Pool(processes=16)
+    pool = multiprocessing.Pool(processes=12)
     # pool multiprocessing for all combinations
     pool.map(main, get_airport_combination(AIRPORTS))

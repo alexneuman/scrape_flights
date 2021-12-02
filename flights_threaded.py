@@ -1,8 +1,10 @@
 """A program that searches flght data from Google Flights"""
 
 import re
+import threading
 import datetime
 import itertools
+from queue import Queue
 import logging
 
 from db import commit_data, flights_table, get_existing_airport_combos, get_number_of_days_for_combo
@@ -30,7 +32,7 @@ def get_airport_combination(airports):
     
     # all possible combinations of airports
     for combination in itertools.chain(combinations, (tuple(reversed(c)) for c in combinations)):
-        # check if combination not identical, incomplete
+        # check if combination identical or incomplete
         if combination[0] == combination[1] or get_number_of_days_for_combo(*combination) == NUM_DAYS:
             continue
         yield combination
@@ -88,7 +90,7 @@ def search_flights(page, airport_combo: tuple[str, str]) -> None:
     if 'search' not in page.url or 'explore' in page.url:
         search_flights(page, airport_combo)
 
-
+    
 def increment_date_on_page(page, increment=1):
     """
     Increments depart date on page by n days
@@ -96,11 +98,9 @@ def increment_date_on_page(page, increment=1):
     """
 
     for _ in range(increment):
-        page.wait_for_timeout(500)
-        page.set_default_timeout(500)
         try:
             page.click('//input[@type="text" and @value and @placeholder="Departure date"]/../div[3]')
-        except Exception:
+        except TimeoutError:
             print('Something went wrong. Reloading page...')
             page.reload()
             increment_date_on_page(page)
@@ -145,39 +145,50 @@ def get_flight_data(page, current_day:str, flights_combo:tuple[str, str]) -> lis
         else:
             num_stops = re.search('.*\d', num_stops).group(0)
 
-        try:
-            departure_airport = flight.query_selector('//div[contains(text(), " hr") and contains(text(), " min")]/../span/g-bubble/span').text_content()
-            arrival_airport = flight.query_selector('//div[contains(text(), " hr") and contains(text(), " min")]/../span/g-bubble[2]/span').text_content()
-        except:
-            # use the default airport codes
-            departure_airport, arrival_airport = flights_combo
+        departure_airport, arrival_airport = flights_combo
+
     
+
         flights.append({'price': price, 'depart_time': depart_time, 'arrival_time': arrival_time, 'departure_airport': departure_airport, 'arrival_airport': arrival_airport, 'airlines': ','.join(airlines), 'num_stops': num_stops})
     
     # all flights have same date
     date = START_DATE + datetime.timedelta(days = current_day)
     date_str = date.strftime('%m/%d/%Y')
+
     for flight in flights:
         flight['depart_date'] = date_str
 
     return flights
 
 def main(combination, start_page=0):
-    current_day = start_page or 0
-    with sync_playwright() as p:
-        browser = p.firefox.launch(headless=False, slow_mo=50)
-        page = browser.new_page()
-
-        # search for flights
-        search_flights(page, combination)
-        page.wait_for_timeout(5000)
-        for _ in range(NUM_DAYS):
-            flights = get_flight_data(page, current_day, combination)
-            commit_data(flights_table, flights)
-            increment_date_on_page(page)
-            current_day += 1
+    
+    try:
+        sema.acquire()
+        current_day = start_page or 0
+        with sync_playwright() as p:
+                browser = p.firefox.launch(headless=False, slow_mo=50)
+                page = browser.new_page()
+                page.set_default_timeout(50000)
+                # search for flights
+                search_flights(page, combination)
+                page.wait_for_timeout(5000)
+                for _ in range(NUM_DAYS):
+                    flights = get_flight_data(page, current_day, combination)
+                    if flights:
+                        global lock
+                        with lock:
+                            commit_data(flights_table, flights)
+                            
+                    increment_date_on_page(page)
+                    current_day += 1
+        sema.release()
+    except:
+        logging.warning(f'Error with combination: {combination} at day {current_day} out of {NUM_DAYS}')
+        sema.release()
 
 if __name__ == '__main__':
+    lock = threading.Lock()
+    sema = threading.Semaphore(value=14)
     for combination in get_airport_combination(AIRPORTS):
-        main(combination)
-    print('Job done')
+        t = threading.Thread(target=main, args=(combination,)).start()
+    
