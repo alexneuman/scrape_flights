@@ -4,7 +4,6 @@ import re
 import threading
 import datetime
 import itertools
-from queue import Queue
 import logging
 
 from db import commit_data, flights_table, get_existing_airport_combos, get_number_of_days_for_combo
@@ -118,7 +117,7 @@ def get_flight_data(page, current_day:str, flights_combo:tuple[str, str]) -> lis
     page.wait_for_timeout(500)
     #top level flight info
     flights = []
-    flights_selector = page.query_selector_all('//div[contains(text(), "kg CO")]/../../../../../div[2]/div[2]/div/span[contains(@aria-label, "Leaves")]/ancestor::node()[7]')
+    flights_selector = page.query_selector_all('//div[contains(text(), "kg CO")]/ancestor::node()[5]/div[2]/div[2]/div/span[contains(@aria-label, "Leaves")]/ancestor::node()[7]')
     for flight in flights_selector:
         try:
             price = flight.query_selector('//span[contains(text(), "$")]').text_content().replace('$', '').replace(',', '')
@@ -141,13 +140,12 @@ def get_flight_data(page, current_day:str, flights_combo:tuple[str, str]) -> lis
         # number of stops
         num_stops = flight.query_selector('//span[contains(text(), "stop")]').text_content()
         if num_stops == 'Nonstop':
-            num_stops = 0 
+            num_stops = 0
         else:
             num_stops = re.search('.*\d', num_stops).group(0)
 
         departure_airport, arrival_airport = flights_combo
 
-    
 
         flights.append({'price': price, 'depart_time': depart_time, 'arrival_time': arrival_time, 'departure_airport': departure_airport, 'arrival_airport': arrival_airport, 'airlines': ','.join(airlines), 'num_stops': num_stops})
     
@@ -183,12 +181,20 @@ def main(combination, start_page=0):
                     current_day += 1
         sema.release()
     except:
-        logging.warning(f'Error with combination: {combination} at day {current_day} out of {NUM_DAYS}')
         sema.release()
 
 if __name__ == '__main__':
+    threads = []
     lock = threading.Lock()
-    sema = threading.Semaphore(value=14)
+    sema = threading.Semaphore(value=4)
     for combination in get_airport_combination(AIRPORTS):
-        t = threading.Thread(target=main, args=(combination,)).start()
+        t = threading.Thread(target=main, args=(combination,))
+        threads.append(t)
+    for t in threads:
+        t.start()  
+    
+    for t in threads:
+        t.join()
+    
+    print('Job done!')
     

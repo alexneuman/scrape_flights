@@ -1,6 +1,5 @@
 """Airline database management"""
 
-import threading
 import time
 
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, Boolean, UniqueConstraint, insert, select
@@ -50,7 +49,7 @@ def get_existing_airport_combos() -> set:
 def get_number_of_days_for_combo(depart_airport, arrive_airport):
     """
     Returns number of days for a given combination of airports
-    Used to determine whether a given airport combo is complete
+    Used to determine whether a given airport combo has completed its search
     """
     with engine.begin() as conn:
         query = select([flights_table.c.depart_date]).distinct().where(flights_table.c.departure_airport == depart_airport, flights_table.c.arrival_airport == arrive_airport).group_by(flights_table.c.depart_date, flights_table.c.departure_airport, flights_table.c.arrival_airport)

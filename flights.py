@@ -13,7 +13,7 @@ from trips import Trips
 AIRPORTS = ('ATL', 'LAX', 'ORD', 'DFW', 'DEN', 'JFK', 'SFO', 'LAS', 'PHX', 'IAH', 'DEN', 'CLT', 'LAS', 'MCO', 'SEA', 'MIA', 'FLL', 'SFO', 'EWR', 'MSP', 'FLL', 'BOS', 'DTW', 'PHL', 'LGA', 'BWI', 'SLC', 'SAN', 'DCA', 'TPA', 'IAD', 'MDW', 'HNL', 'PDX', 'SJC', 'DAL', 'MSY', 'STL', 'OAK', 'SMF', 'BNA')
 
 START_DATE = datetime.datetime(2022, 1, 11)
-TRIP_TYPE = Trips.ONE_WAY
+TRIP_TYPE = Trips.ROUND_TRIP
 NUM_DAYS = 7
 
 
@@ -97,7 +97,6 @@ def increment_date_on_page(page, increment=1):
 
     for _ in range(increment):
         page.wait_for_timeout(500)
-        page.set_default_timeout(500)
         try:
             page.click('//input[@type="text" and @value and @placeholder="Departure date"]/../div[3]')
         except Exception:
@@ -118,7 +117,7 @@ def get_flight_data(page, current_day:str, flights_combo:tuple[str, str]) -> lis
     page.wait_for_timeout(500)
     #top level flight info
     flights = []
-    flights_selector = page.query_selector_all('//div[contains(text(), "kg CO")]/../../../../../div[2]/div[2]/div/span[contains(@aria-label, "Leaves")]/ancestor::node()[7]')
+    flights_selector = page.query_selector_all('//div[contains(text(), "kg CO")]/ancestor::node()[5]/div[2]/div[2]/div/span[contains(@aria-label, "Leaves")]/ancestor::node()[7]')
     for flight in flights_selector:
         try:
             price = flight.query_selector('//span[contains(text(), "$")]').text_content().replace('$', '').replace(',', '')
@@ -162,22 +161,21 @@ def get_flight_data(page, current_day:str, flights_combo:tuple[str, str]) -> lis
 
     return flights
 
-def main(combination, start_page=0):
+def main(page, combination, start_page=0):
     current_day = start_page or 0
+    # search for flights
+    search_flights(page, combination)
+    page.wait_for_timeout(5000)
+    for _ in range(NUM_DAYS):
+        flights = get_flight_data(page, current_day, combination)
+        commit_data(flights_table, flights)
+        increment_date_on_page(page)
+        current_day += 1
+
+if __name__ == '__main__':
     with sync_playwright() as p:
         browser = p.firefox.launch(headless=False, slow_mo=50)
         page = browser.new_page()
-
-        # search for flights
-        search_flights(page, combination)
-        page.wait_for_timeout(5000)
-        for _ in range(NUM_DAYS):
-            flights = get_flight_data(page, current_day, combination)
-            commit_data(flights_table, flights)
-            increment_date_on_page(page)
-            current_day += 1
-
-if __name__ == '__main__':
-    for combination in get_airport_combination(AIRPORTS):
-        main(combination)
+        for combination in get_airport_combination(AIRPORTS):
+            main(page, combination)
     print('Job done')
