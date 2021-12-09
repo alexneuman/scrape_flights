@@ -31,7 +31,7 @@ def get_airport_combination(airports):
     # all possible combinations of airports
     for combination in combinations:
         # check if combination not identical, incomplete
-        if combination[0] == combination[1] or get_number_of_days_for_combo(*combination) == NUM_DAYS:
+        if get_number_of_days_for_combo(*combination) == NUM_DAYS:
             continue
         yield combination
 
