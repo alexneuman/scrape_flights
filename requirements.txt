@@ -3,4 +3,3 @@ playwright==1.17.0
 pyee==8.2.2
 SQLAlchemy==1.4.27
 websockets==10.1
-scrapy-playwright

@@ -30,7 +30,7 @@ def get_airport_combination(airports):
     combinations = possible_combinations - existing_combos
     
     # all possible combinations of airports
-    for combination in itertools.chain(combinations, (tuple(reversed(c)) for c in combinations)):
+    for combination in combinations:
         # check if combination identical or incomplete
         if combination[0] == combination[1] or get_number_of_days_for_combo(*combination) == NUM_DAYS:
             continue
